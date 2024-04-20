@@ -6,9 +6,18 @@ using TMPro;
 using UnityEngine.UI;
 using Photon.Pun;
 using Photon.Realtime;
+using Unity.VisualScripting.Antlr3.Runtime.Tree;
+using System.Linq;
+using Hashtable = ExitGames.Client.Photon.Hashtable;
 public class ControlLobby : MonoBehaviourPunCallbacks
 {
     #region CORE
+
+    private void Awake()
+    {
+        Awake_PanelInicio();
+    }
+    
     void Start()
     {
         Start_PanelInicio();
@@ -107,16 +116,19 @@ public class ControlLobby : MonoBehaviourPunCallbacks
     [Header("PANEL SELECCION")]
     [SerializeField] private GameObject panelSeleccion;
 
-    [SerializeField] private Transform panelJugadores;
-    [SerializeField] private SlotJugador pfSlotJugador;
-    
-    private Dictionary<Player, SlotJugador> dicSlotJugadores;
-
+    #region PANEL SELECCION - Core Photon
+    private void Update()
+    {
+        if(Input.GetKeyDown(KeyCode.Return))
+        {
+            EnviarMensaje();
+        }
+    }
     public override void OnCreatedRoom()
     {
-        base.OnCreatedRoom();
+        InicializarChat();
     }
-    
+
     public override void OnJoinedRoom()
     {
         PhotonNetwork.AutomaticallySyncScene = true;
@@ -124,41 +136,133 @@ public class ControlLobby : MonoBehaviourPunCallbacks
         panelSeleccion.SetActive(true);
 
         InicializarSlots();
+        ActualizarChat();
+
+        StartCoroutine(CrControlSpam());
     }
-    
-    public void onPlayerEnteredRoom(Player newPlayer)
+
+    public override void OnPlayerEnteredRoom(Player newPlayer)
     {
         CrearSlot(newPlayer);
     }
-    
-    public void onPlayerLeftRoom(Player otherPlayer)
+
+    public override void OnPlayerLeftRoom(Player otherPlayer)
     {
         EliminarSlot(otherPlayer);
     }
-    
+
+    public override void OnRoomPropertiesUpdate(Hashtable propertiesThatChanged)
+    {
+        ActualizarChat();
+    }
+
+    #endregion PANEL SELECCION - Core Photon
+
+    #region PANEL SELECCION - Slots
+    [Header("Panel Seleccion - Slots")]
+    [SerializeField] private Transform panelJugadores;
+    [SerializeField] private SlotJugador pfSlotJugador;
+    private Dictionary<Player, SlotJugador> dicSlotJugadores;
+
     public void InicializarSlots()
     {
         dicSlotJugadores = new Dictionary<Player, SlotJugador>();
-        
+
         foreach (Player player in PhotonNetwork.PlayerList)
         {
             CrearSlot(player);
         }
     }
-    
-    public void CrearSlot(Player player)
+    private void CrearSlot(Player player)
     {
         SlotJugador slot = Instantiate(pfSlotJugador, panelJugadores);
         slot.Player = player;
         dicSlotJugadores.Add(player, slot);
     }
-    
-    public void EliminarSlot(Player player)
+
+    private void EliminarSlot(Player player)
     {
         Destroy(dicSlotJugadores[player].gameObject);
     }
+    #endregion PANEL SELECCION - Slots
+
+
+
+    #region PANEL SELECCION - Chat
+    [Header("Panel Seleccion - Chat")]
+    [SerializeField] private RectTransform scrollView;
+    [SerializeField] private RectTransform content;
+    [SerializeField] private TMP_Text chat;
+    [SerializeField] private TMP_InputField inputMensaje;
+    [SerializeField] private Button botonEnviar;
+
+    private int mensajesEnviados = 0;
+
+    private void InicializarChat()
+    {
+        Hashtable propiedades = PhotonNetwork.CurrentRoom.CustomProperties;
+        propiedades["Chat"] = "INICIO DE CHAT";
+
+        PhotonNetwork.CurrentRoom.SetCustomProperties(propiedades);
+    }
+
+    private void EnviarMensaje()
+    {
+        if (mensajesEnviados >= 5)
+            return;
+
+        string mensaje = inputMensaje.text;
+
+        if (mensaje == string.Empty)
+            return;
+
+        if (mensaje.Length> 40)
+            return;
+
+        var propiedades = PhotonNetwork.CurrentRoom.CustomProperties;
+
+        string chat = propiedades["Chat"].ToString();
+
+        chat += "\n" + PhotonNetwork.NickName + ": " + mensaje;
+        propiedades["Chat"] = chat;
+        PhotonNetwork.CurrentRoom.SetCustomProperties(propiedades);
+        inputMensaje.text = string.Empty;
+        inputMensaje.ActivateInputField();
+        mensajesEnviados++;
+    }
+
+    private void ActualizarChat()
+    {
+       var propiedades = PhotonNetwork.CurrentRoom.CustomProperties;
+
+        if(!propiedades.ContainsKey("Chat"))
+            return;
+        string chatString = propiedades["Chat"].ToString();
+        chat.text = chatString;
+        int offsetSuperior = 10;
+        int alturaLinea = 29;
+        int espacios = chat.text.Count(c => c == '\n');
+        float altura = offsetSuperior + alturaLinea * espacios;
+        content.sizeDelta = new Vector2(content.sizeDelta.x, altura);
+
+        if(content.sizeDelta.y > scrollView.sizeDelta.y)
+        {
+            Vector3 posicionContent = content.localPosition;
+            posicionContent.y = altura - scrollView.sizeDelta.y;
+            content.localPosition = posicionContent;
+        }
+    }
+
+    public IEnumerator CrControlSpam()
+    {
+        Repetir:
+        yield return new WaitForSeconds(1f);
+
+        if (mensajesEnviados >= 1)
+            mensajesEnviados--;
+        goto Repetir;
+        
+    }
+    #endregion PANEL SELECCION - Chat
     #endregion
-
-
-
 }
