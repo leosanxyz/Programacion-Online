@@ -206,7 +206,7 @@ public class ControlLobby : MonoBehaviourPunCallbacks
         PhotonNetwork.CurrentRoom.SetCustomProperties(propiedades);
     }
 
-    private void EnviarMensaje()
+    public void EnviarMensaje()
     {
         if (mensajesEnviados >= 5)
             return;
@@ -218,7 +218,7 @@ public class ControlLobby : MonoBehaviourPunCallbacks
 
         if (mensaje.Length> 40)
             return;
-
+        Debug.Log("Mensaje enviado: " + mensaje);
         var propiedades = PhotonNetwork.CurrentRoom.CustomProperties;
 
         string chat = propiedades["Chat"].ToString();
